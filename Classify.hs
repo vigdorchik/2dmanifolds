@@ -3,7 +3,8 @@ module Classify (normalize) where
 import Data.List
 import Control.Monad
 import Control.Arrow
-import Text.ParserCombinators.Parsec
+import Control.Applicative ((<|>))
+import Text.ParserCombinators.Parsec hiding ((<|>))
 import Text.ParserCombinators.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Char
 import Text.ParserCombinators.Parsec.Prim (parse)
@@ -49,7 +50,7 @@ validate :: String -> Either String [Sphere]
 validate = mfilter (\spheres' ->
                      let holes' = concat $ map holes spheres'
                          edges' = concat $ map edges holes'
-                         labels' = map edgeLabel edges'
+                         labels' = sort $ map edgeLabel edges'
                          nub' = nub labels' in
                      nub' == (labels' \\ nub')) . fromStr
   
@@ -57,6 +58,14 @@ normalize :: String -> String
 normalize s = case validate s of
   Left err -> error err
   Right (spheres) -> show $ zipSpheres spheres  -- todo
+
+findTwin :: Edge -> [Sphere] -> Maybe (Edge, Hole, Sphere)
+findTwin e =
+  let l = edgeLabel e in
+  findJust . (map (\s -> findTwin' l s (holes s))) where
+    findJust = foldl (<|>) Nothing
+    findTwin' l s = findJust . (map (\h -> findTwin'' l s h (edges h))) where
+        findTwin'' l s h = fmap (\e -> (e, h, s)) . find ((==) l . edgeLabel)
 
 zipSpheres :: [Sphere] -> [Surface]
 zipSpheres [s] = [Surface [s]] -- todo
