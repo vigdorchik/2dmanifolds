@@ -9,14 +9,14 @@ import Text.ParserCombinators.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Char
 import Text.ParserCombinators.Parsec.Prim (parse)
 
-data Edge = Dir Char | Inv Char
+data Edge = Dir Char | Inv Char deriving Eq
 
 edgeLabel (Dir c) = c
 edgeLabel (Inv c) = c
 
 newtype Hole = Hole {
   edges :: [Edge]
-}
+} deriving Eq
 
 instance Show Hole where
   show = concat . map showEdge . edges where
@@ -25,17 +25,10 @@ instance Show Hole where
 
 newtype Sphere = Sphere {
   holes :: [Hole]
-}
+} deriving Eq
 
 instance Show Sphere where
   show = unwords . map ((:) '(' . flip (++) ")" . show) . holes
-
-newtype Surface = Surface {
-  spheres :: [Sphere]
-}
-
-instance Show Surface where
-  show = intercalate "+" . map show . spheres
 
 invP = do c <- letter; _ <- char '\''; return c
 edgeP = choice [fmap Inv invP, fmap Dir letter]
@@ -57,15 +50,44 @@ validate = mfilter (\spheres' ->
 normalize :: String -> String
 normalize s = case validate s of
   Left err -> error err
-  Right (spheres) -> show $ zipSpheres spheres  -- todo
+  Right spheres -> intercalate "+" (map show (zipSpheres spheres))  -- todo
+
+findJust :: [Maybe a] -> (Maybe a)
+findJust = foldl (<|>) Nothing
 
 findTwin :: Edge -> [Sphere] -> Maybe (Edge, Hole, Sphere)
 findTwin e =
   let l = edgeLabel e in
   findJust . (map (\s -> findTwin' l s (holes s))) where
-    findJust = foldl (<|>) Nothing
     findTwin' l s = findJust . (map (\h -> findTwin'' l s h (edges h))) where
         findTwin'' l s h = fmap (\e -> (e, h, s)) . find ((==) l . edgeLabel)
 
-zipSpheres :: [Sphere] -> [Surface]
-zipSpheres [s] = [Surface [s]] -- todo
+flip' = reverse . (map inv) where
+  inv (Dir u) = Inv u
+  inv (Inv u) = Dir u
+
+align (Dir _) (Dir _) es es' = es++(flip' es')
+align (Inv _) (Inv _) es es' = es++(flip' es')
+align _ _ es es' = es++es'
+
+zipSpheres :: [Sphere] -> [Sphere]
+zipSpheres = surfaces [] where
+  surfaces acc [] = reverse acc
+  surfaces acc (sphere:spheres) =
+    let (surface, others) = zipOne (holes sphere) spheres in
+    surfaces (surface:acc) others where
+      zipOne holes' spheres =
+        let doHoles [] doneHoles spheres = (Sphere $ reverse doneHoles, spheres)
+            doHoles (h:tl) doneHoles spheres =
+              let (hole, hs, ss) = doEdges (edges h) [] [] spheres in
+              doHoles (hs++tl) (hole:doneHoles) ss where
+                doEdges (e:tl) doneEdges newHoles spheres = case findTwin e spheres of
+                  Nothing -> doEdges tl (e:doneEdges) newHoles spheres
+                  Just (e', h', s') ->
+                    let hs = (delete h' $ holes s')++newHoles
+                        ss = delete s' spheres
+                        aligned = align e e' tl $ delete e' (edges h') in
+                    doEdges aligned doneEdges hs ss
+                doEdges [] doneEdges newHoles spheres =
+                  (Hole $ reverse doneEdges, newHoles, spheres)
+        in doHoles holes' [] spheres
