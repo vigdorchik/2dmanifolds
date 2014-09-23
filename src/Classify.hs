@@ -1,5 +1,6 @@
 module Classify (normalize) where
 
+import Classify.Cursor
 import Data.List
 import Control.Monad
 import Control.Arrow (left)
@@ -55,19 +56,6 @@ normalize s = case validate s of
 findJust :: [Maybe a] -> (Maybe a)
 findJust = foldl (<|>) Nothing
 
-type Cursor a = ([a], a, [a])
-
-cursors :: [a] -> [Cursor a]
-cursors (hd:tl) = take (length tl + 1) $ iterate shift ([], hd, tl) where
-  shift (l, x, y:r) = (x:l, y, r)
-
-pointed :: Cursor a -> a
-pointed (_,x,_) = x
-
-rappend :: [a] -> [a] -> [a]
-rappend [] r = r
-rappend (hd:tl) r = rappend tl (hd:r)
-
 findTwin :: Edge -> [Sphere] -> Maybe (Cursor Edge, Cursor Hole, Cursor Sphere)
 findTwin e =
   let l = edgeLabel e in
@@ -97,10 +85,10 @@ zipSpheres = surfaces [] where
               doHoles (hs++tl) (hole:doneHoles) ss where
                 doEdges (e:tl) doneEdges newHoles spheres = case findTwin e spheres of
                   Nothing -> doEdges tl (e:doneEdges) newHoles spheres
-                  Just ((le',e',re'), (lh',_,rh'), (ls',_,rs')) ->
-                    let hs = (rappend lh' rh')++newHoles
-                        ss = rappend ls' rs'
-                        aligned = align e e' tl $ rappend le' re' in
+                  Just (ce, ch, cs) ->
+                    let ss = excluded cs
+                        hs = (excluded ch)++newHoles
+                        aligned = align e (pointed ce) tl $ excluded ce in
                     doEdges aligned doneEdges hs ss
                 doEdges [] doneEdges newHoles spheres =
                   (Hole $ reverse doneEdges, newHoles, spheres)

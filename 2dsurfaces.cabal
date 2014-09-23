@@ -7,6 +7,7 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 library
-  exposed-modules:     Classify
-  -- other-modules:       
-  build-depends:       base ==4.6.*, parsec ==3.1.*
+  exposed-modules:   Classify
+  hs-source-dirs:    src
+  other-modules:     Classify.Cursor
+  build-depends:     base ==4.6.*, parsec ==3.1.*
