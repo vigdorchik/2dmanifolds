@@ -2,21 +2,21 @@ module Classify (normalize) where
 
 import Data.List
 import Control.Monad
-import Control.Arrow
+import Control.Arrow (left)
 import Control.Applicative ((<|>))
 import Text.ParserCombinators.Parsec hiding ((<|>))
 import Text.ParserCombinators.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Char
 import Text.ParserCombinators.Parsec.Prim (parse)
 
-data Edge = Dir Char | Inv Char deriving Eq
+data Edge = Dir Char | Inv Char
 
 edgeLabel (Dir c) = c
 edgeLabel (Inv c) = c
 
 newtype Hole = Hole {
   edges :: [Edge]
-} deriving Eq
+}
 
 instance Show Hole where
   show = concat . map showEdge . edges where
@@ -25,7 +25,7 @@ instance Show Hole where
 
 newtype Sphere = Sphere {
   holes :: [Hole]
-} deriving Eq
+}
 
 instance Show Sphere where
   show = unwords . map ((:) '(' . flip (++) ")" . show) . holes
@@ -55,12 +55,26 @@ normalize s = case validate s of
 findJust :: [Maybe a] -> (Maybe a)
 findJust = foldl (<|>) Nothing
 
-findTwin :: Edge -> [Sphere] -> Maybe (Edge, Hole, Sphere)
+type Cursor a = ([a], a, [a])
+
+cursors :: [a] -> [Cursor a]
+cursors (hd:tl) = take (length tl + 1) $ iterate shift ([], hd, tl) where
+  shift (l, x, y:r) = (x:l, y, r)
+
+pointed :: Cursor a -> a
+pointed (_,x,_) = x
+
+rappend :: [a] -> [a] -> [a]
+rappend [] r = r
+rappend (hd:tl) r = rappend tl (hd:r)
+
+findTwin :: Edge -> [Sphere] -> Maybe (Cursor Edge, Cursor Hole, Cursor Sphere)
 findTwin e =
   let l = edgeLabel e in
-  findJust . (map (\s -> findTwin' l s (holes s))) where
-    findTwin' l s = findJust . (map (\h -> findTwin'' l s h (edges h))) where
-        findTwin'' l s h = fmap (\e -> (e, h, s)) . find ((==) l . edgeLabel)
+  findJust . (map (\cs@(_,s,_) -> findTwin' l cs (holes s))) . cursors where
+    findTwin' l cs = findJust . (map (\ch@(_,h,_) -> findTwin'' l cs ch (edges h))) . cursors where
+        findTwin'' l cs ch = fmap (\ce -> (ce, ch, cs)) .
+                             find ((==) l . edgeLabel . pointed) . cursors
 
 flip' = reverse . (map inv) where
   inv (Dir u) = Inv u
@@ -83,10 +97,10 @@ zipSpheres = surfaces [] where
               doHoles (hs++tl) (hole:doneHoles) ss where
                 doEdges (e:tl) doneEdges newHoles spheres = case findTwin e spheres of
                   Nothing -> doEdges tl (e:doneEdges) newHoles spheres
-                  Just (e', h', s') ->
-                    let hs = (delete h' $ holes s')++newHoles
-                        ss = delete s' spheres
-                        aligned = align e e' tl $ delete e' (edges h') in
+                  Just ((le',e',re'), (lh',_,rh'), (ls',_,rs')) ->
+                    let hs = (rappend lh' rh')++newHoles
+                        ss = rappend ls' rs'
+                        aligned = align e e' tl $ rappend le' re' in
                     doEdges aligned doneEdges hs ss
                 doEdges [] doneEdges newHoles spheres =
                   (Hole $ reverse doneEdges, newHoles, spheres)
