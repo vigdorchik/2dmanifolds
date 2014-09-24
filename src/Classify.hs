@@ -10,10 +10,10 @@ import Text.ParserCombinators.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Char
 import Text.ParserCombinators.Parsec.Prim (parse)
 
-data Edge = Dir Char | Inv Char
+data Edge = E Char | E_1 Char
 
-edgeLabel (Dir c) = c
-edgeLabel (Inv c) = c
+edgeLabel (E c) = c
+edgeLabel (E_1 c) = c
 
 newtype Hole = Hole {
   edges :: [Edge]
@@ -21,8 +21,8 @@ newtype Hole = Hole {
 
 instance Show Hole where
   show = concat . map showEdge . edges where
-    showEdge (Dir c) = show c
-    showEdge (Inv c) = [c, '\'']
+    showEdge (E c) = show c
+    showEdge (E_1 c) = [c, '\'']
 
 newtype Sphere = Sphere {
   holes :: [Hole]
@@ -32,7 +32,7 @@ instance Show Sphere where
   show = unwords . map ((:) '(' . flip (++) ")" . show) . holes
 
 invP = do c <- letter; _ <- char '\''; return c
-edgeP = choice [fmap Inv invP, fmap Dir letter]
+edgeP = choice [fmap E_1 invP, fmap E letter]
 holeP = fmap Hole $ many1 edgeP
 sphereP = fmap Sphere $ many1 $ between (char '(') (char ')') holeP
 surfaceP = sepBy1 sphereP (char '+')
@@ -42,8 +42,8 @@ fromStr s = left show $ parse surfaceP "" s
       
 validate :: String -> Either String [Sphere]
 validate = mfilter (\spheres' ->
-                     let holes' = concat $ map holes spheres'
-                         edges' = concat $ map edges holes'
+                     let holes' = concatMap holes spheres'
+                         edges' = concatMap edges holes'
                          labels' = sort $ map edgeLabel edges'
                          nub' = nub labels' in
                      nub' == (labels' \\ nub')) . fromStr
@@ -51,7 +51,12 @@ validate = mfilter (\spheres' ->
 normalize :: String -> String
 normalize s = case validate s of
   Left err -> error err
-  Right spheres -> intercalate "+" (map show (zipSpheres spheres))  -- todo
+  Right spheres -> intercalate "+" (map normalizeSphere . zipSpheres $ spheres)
+
+normalizeSphere :: Sphere -> String
+normalizeSphere sphere =
+  let alphabet = nub $ map edgeLabel . concatMap edges . holes $ sphere in
+  show sphere -- todo
 
 findJust :: [Maybe a] -> (Maybe a)
 findJust = foldl (<|>) Nothing
@@ -65,11 +70,11 @@ findTwin e =
                              find ((==) l . edgeLabel . pointed) . cursors
 
 flip' = reverse . (map inv) where
-  inv (Dir u) = Inv u
-  inv (Inv u) = Dir u
+  inv (E u) = E_1 u
+  inv (E_1 u) = E u
 
-align (Dir _) (Dir _) es es' = es++(flip' es')
-align (Inv _) (Inv _) es es' = es++(flip' es')
+align (E _) (E _) es es' = es++(flip' es')
+align (E_1 _) (E_1 _) es es' = es++(flip' es')
 align _ _ es es' = es++es'
 
 zipSpheres :: [Sphere] -> [Sphere]
