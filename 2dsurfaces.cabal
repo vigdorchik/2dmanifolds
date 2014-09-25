@@ -4,10 +4,18 @@ description:         Provide classification for 2D topological surfaces.
 author:              Eugene Vigdorchik
 category:            Math
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.20.0
 
 library
   exposed-modules:   Classify
   hs-source-dirs:    src
   other-modules:     Classify.Cursor
   build-depends:     base ==4.6.*, parsec ==3.1.*
+  default-language:  Haskell98
+
+Test-Suite classify-spec
+    type:       exitcode-stdio-1.0
+    main-is:    ClassifySpec.hs
+    hs-source-dirs:    test
+    build-depends: base, QuickCheck
+    default-language: Haskell98
