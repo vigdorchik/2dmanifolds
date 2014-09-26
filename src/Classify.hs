@@ -69,13 +69,14 @@ findTwin e =
         findTwin'' l cs ch = fmap (\ce -> (ce, ch, cs)) .
                              find ((==) l . edgeLabel . pointed) . cursors
 
-flip' = reverse . (map inv) where
+revinv = reverse . (map inv) where
   inv (E u) = E_1 u
   inv (E_1 u) = E u
 
-align (E _) (E _) es es' = es++(flip' es')
-align (E_1 _) (E_1 _) es es' = es++(flip' es')
-align _ _ es es' = es++es'
+-- There must be a better way to express this.
+align (E _) (E _) es (pre,_,post) = (revinv pre)++(revinv post)++es
+align (E_1 _) (E_1 _) es (pre,_,post) = (revinv pre)++(revinv post)++es
+align _ _ es (pre,_,post) = post++pre++es
 
 zipSpheres :: [Sphere] -> [Sphere]
 zipSpheres = surfaces [] where
@@ -93,7 +94,7 @@ zipSpheres = surfaces [] where
                   Just (ce, ch, cs) ->
                     let ss = excluded cs
                         hs = (excluded ch)++newHoles
-                        aligned = align e (pointed ce) tl $ excluded ce in
+                        aligned = align e (pointed ce) tl ce in
                     doEdges aligned doneEdges hs ss
                 doEdges [] doneEdges newHoles spheres =
                   (Hole $ reverse doneEdges, newHoles, spheres)
