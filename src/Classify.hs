@@ -21,7 +21,7 @@ newtype Hole = Hole {
 
 instance Show Hole where
   show = concat . map showEdge . edges where
-    showEdge (E c) = show c
+    showEdge (E c) = [c]
     showEdge (E_1 c) = [c, '\'']
 
 newtype Sphere = Sphere {
@@ -29,11 +29,12 @@ newtype Sphere = Sphere {
 }
 
 instance Show Sphere where
-  show = unwords . map ((:) '(' . flip (++) ")" . show) . holes
+  show = concat . map ((:) '(' . flip (++) ")" . show) . holes
 
-invP = do c <- letter; _ <- char '\''; return c
-edgeP = choice [fmap E_1 invP, fmap E letter]
-holeP = fmap Hole $ many1 edgeP
+edgeP = do
+  c <- letter
+  option (E c) $ fmap (\_ -> E_1 c) (char '\'')
+holeP = fmap Hole $ many edgeP
 sphereP = fmap Sphere $ many1 $ between (char '(') (char ')') holeP
 surfaceP = sepBy1 sphereP (char '+')
     
@@ -59,7 +60,7 @@ normalizeSphere sphere =
   show sphere -- todo
 
 findJust :: [Maybe a] -> (Maybe a)
-findJust = foldl (<|>) Nothing
+findJust = foldl' (<|>) Nothing
 
 findTwin :: Edge -> [Sphere] -> Maybe (Cursor Edge, Cursor Hole, Cursor Sphere)
 findTwin e =
@@ -69,13 +70,12 @@ findTwin e =
         findTwin'' l cs ch = fmap (\ce -> (ce, ch, cs)) .
                              find ((==) l . edgeLabel . pointed) . cursors
 
-revinv = reverse . (map inv) where
+invert = reverse . (map inv) where
   inv (E u) = E_1 u
   inv (E_1 u) = E u
 
--- There must be a better way to express this.
-align (E _) (E _) es (pre,_,post) = (revinv pre)++(revinv post)++es
-align (E_1 _) (E_1 _) es (pre,_,post) = (revinv pre)++(revinv post)++es
+align (E _) (E _) es (pre,_,post) = (invert pre)++(invert post)++es
+align (E_1 _) (E_1 _) es (pre,_,post) = (invert pre)++(invert post)++es
 align _ _ es (pre,_,post) = post++pre++es
 
 zipSpheres :: [Sphere] -> [Sphere]

@@ -10,12 +10,12 @@ library
   exposed-modules:   Classify
   hs-source-dirs:    src
   other-modules:     Classify.Cursor
-  build-depends:     base ==4.6.*, parsec ==3.1.*
+  build-depends:     base, parsec
   default-language:  Haskell98
 
 Test-Suite classify-spec
-    type:       exitcode-stdio-1.0
-    main-is:    ClassifySpec.hs
-    hs-source-dirs:    test
-    build-depends: base, QuickCheck
-    default-language: Haskell98
+ type: exitcode-stdio-1.0
+ main-is: ClassifySpec.hs
+ build-depends: base, HUnit, 2dsurfaces
+ hs-source-dirs:    test
+ default-language: Haskell98
