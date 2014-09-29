@@ -5,9 +5,9 @@ import Data.List
 import Control.Monad
 import Control.Arrow (left)
 import Control.Applicative ((<|>))
-import Text.ParserCombinators.Parsec hiding ((<|>))
+import Text.ParserCombinators.Parsec (many, char)
 import Text.ParserCombinators.Parsec.Combinator
-import Text.ParserCombinators.Parsec.Char
+import Text.ParserCombinators.Parsec.Char (letter)
 import Text.ParserCombinators.Parsec.Prim (parse)
 
 data Edge = E Char | E_1 Char
@@ -30,6 +30,16 @@ newtype Sphere = Sphere {
 
 instance Show Sphere where
   show = concat . map ((:) '(' . flip (++) ")" . show) . holes
+
+data Processing = Processing Int Int Sphere
+data Canonical = Canonical {
+  crosscaps :: Int,
+  handles :: Int
+}
+
+mkCanonical crosscaps handles
+  | crosscaps > 0 && handles > 0 = mkCanonical (crosscaps+2*handles) 0
+  | otherwise = Canonical {crosscaps=crosscaps, handles=handles}
 
 edgeP = do
   c <- letter
@@ -60,7 +70,7 @@ normalizeSphere sphere =
   show sphere -- todo
 
 findJust :: [Maybe a] -> (Maybe a)
-findJust = foldl' (<|>) Nothing
+findJust = foldl'  (<|>) Nothing
 
 findTwin :: Edge -> [Sphere] -> Maybe (Cursor Edge, Cursor Hole, Cursor Sphere)
 findTwin e =
@@ -74,9 +84,12 @@ invert = reverse . (map inv) where
   inv (E u) = E_1 u
   inv (E_1 u) = E u
 
-align (E _) (E _) es (pre,_,post) = (invert pre)++(invert post)++es
-align (E_1 _) (E_1 _) es (pre,_,post) = (invert pre)++(invert post)++es
-align _ _ es (pre,_,post) = post++pre++es
+align e e' es (pre,_,post)
+  | sameDir e e' = (invert pre)++(invert post)++es
+  | otherwise = post++pre++es where
+    sameDir (E _) (E _) = True
+    sameDir (E_1 _) (E_1 _) = True
+    sameDir _ _ = False
 
 zipSpheres :: [Sphere] -> [Sphere]
 zipSpheres = surfaces [] where
