@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Classify (normalize) where
 
 import Classify.Cursor
@@ -31,14 +32,16 @@ newtype Sphere = Sphere {
 instance Show Sphere where
   show = concat . map ((:) '(' . flip (++) ")" . show) . holes
 
-data Processing = Processing Int Int Sphere
+data Processing = Processing Int Int [Hole]
 data Canonical = Canonical {
   crosscaps :: Int,
   handles :: Int
 }
+instance Show Canonical where
+  show canon = "(C=" ++ (show $ crosscaps canon) ++ ", H=" ++ (show $ handles canon) ++ ")"
 
-mkCanonical crosscaps handles
-  | crosscaps > 0 && handles > 0 = mkCanonical (crosscaps+2*handles) 0
+mkCanonical (Processing crosscaps handles [])
+  | crosscaps > 0 && handles > 0 = Canonical {crosscaps=crosscaps+2*handles, handles=0}
   | otherwise = Canonical {crosscaps=crosscaps, handles=handles}
 
 edgeP = do
@@ -67,18 +70,19 @@ normalize s = case validate s of
 normalizeSphere :: Sphere -> String
 normalizeSphere sphere =
   let alphabet = nub $ map edgeLabel . concatMap edges . holes $ sphere in
-  show sphere -- todo
+  show sphere
+  --  (show . mkCanonical . zipOpposites . holes) sphere -- todo
 
-findJust :: [Maybe a] -> (Maybe a)
-findJust = foldl'  (<|>) Nothing
-
-findTwin :: Edge -> [Sphere] -> Maybe (Cursor Edge, Cursor Hole, Cursor Sphere)
+findTwin :: Edge -> [Sphere] -> Maybe ((Cursor Edge, Cursor Hole), Cursor Sphere)
 findTwin e =
-  let l = edgeLabel e in
-  findJust . (map (\cs@(_,s,_) -> findTwin' l cs (holes s))) . cursors where
-    findTwin' l cs = findJust . (map (\ch@(_,h,_) -> findTwin'' l cs ch (edges h))) . cursors where
-        findTwin'' l cs ch = fmap (\ce -> (ce, ch, cs)) .
-                             find ((==) l . edgeLabel . pointed) . cursors
+  msum . (map (\cs@(_,s,_) -> fmap (, cs) $ findTwin' e (holes s))) . cursors
+
+findTwin' :: Edge -> [Hole] -> Maybe (Cursor Edge, Cursor Hole)
+findTwin' e =
+  msum . (map (\ch@(_,h,_) -> fmap (, ch) $ findTwin'' e (edges h))) . cursors
+
+findTwin'' :: Edge -> [Edge] -> Maybe (Cursor Edge)
+findTwin'' e = find ((==) (edgeLabel e) . edgeLabel . pointed) . cursors
 
 invert = reverse . (map inv) where
   inv (E u) = E_1 u
@@ -104,7 +108,7 @@ zipSpheres = surfaces [] where
               doHoles (hs++tl) (hole:doneHoles) ss where
                 doEdges (e:tl) doneEdges newHoles spheres = case findTwin e spheres of
                   Nothing -> doEdges tl (e:doneEdges) newHoles spheres
-                  Just (ce, ch, cs) ->
+                  Just ((ce, ch), cs) ->
                     let ss = excluded cs
                         hs = (excluded ch)++newHoles
                         aligned = align e (pointed ce) tl ce in
@@ -112,3 +116,5 @@ zipSpheres = surfaces [] where
                 doEdges [] doneEdges newHoles spheres =
                   (Hole $ reverse doneEdges, newHoles, spheres)
         in doHoles holes' [] spheres
+
+zipOpposites hs = hs -- todo
