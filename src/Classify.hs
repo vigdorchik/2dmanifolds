@@ -1,8 +1,11 @@
 {-# LANGUAGE TupleSections #-}
 module Classify (normalize) where
 
+import Debug.Trace
 import Classify.Cursor
 import Data.List
+import Data.Array
+import Data.Maybe
 import Control.Monad
 import Control.Arrow (left)
 import Control.Applicative ((<|>))
@@ -11,7 +14,7 @@ import Text.ParserCombinators.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Char (letter)
 import Text.ParserCombinators.Parsec.Prim (parse)
 
-data Edge = E Char | E_1 Char
+data Edge = E Char | E_1 Char deriving Show
 
 edgeLabel (E c) = c
 edgeLabel (E_1 c) = c
@@ -32,23 +35,18 @@ newtype Sphere = Sphere {
 instance Show Sphere where
   show = concat . map ((:) '(' . flip (++) ")" . show) . holes
 
-data Processing = Processing Int Int [Hole]
-data Canonical = Canonical {
-  crosscaps :: Int,
-  handles :: Int
-}
-instance Show Canonical where
-  show canon = "(C=" ++ (show $ crosscaps canon) ++ ", H=" ++ (show $ handles canon) ++ ")"
+data Canonical = Zero | Crosscaps Int | Handles Int deriving Show
 
-mkCanonical (Processing crosscaps handles [])
-  | crosscaps > 0 && handles > 0 = Canonical {crosscaps=crosscaps+2*handles, handles=0}
-  | otherwise = Canonical {crosscaps=crosscaps, handles=handles}
+mkCanonical crosscaps handles
+  | crosscaps == 0 && handles == 0 = Zero
+  | crosscaps > 0 = Crosscaps $ crosscaps+2*handles
+  | otherwise = Handles handles
 
 edgeP = do
   c <- letter
   option (E c) $ fmap (\_ -> E_1 c) (char '\'')
-holeP = fmap Hole $ many edgeP
-sphereP = fmap Sphere $ many1 $ between (char '(') (char ')') holeP
+holeP = fmap Hole $ many1 edgeP
+sphereP = fmap Sphere $ many1 (between (char '(') (char ')') holeP)
 surfaceP = sepBy1 sphereP (char '+')
     
 fromStr :: String -> Either String [Sphere]
@@ -67,12 +65,6 @@ normalize s = case validate s of
   Left err -> error err
   Right spheres -> intercalate "+" (map normalizeSphere . zipSpheres $ spheres)
 
-normalizeSphere :: Sphere -> String
-normalizeSphere sphere =
-  let alphabet = nub $ map edgeLabel . concatMap edges . holes $ sphere in
-  show sphere
-  --  (show . mkCanonical . zipOpposites . holes) sphere -- todo
-
 findTwin :: Edge -> [Sphere] -> Maybe ((Cursor Edge, Cursor Hole), Cursor Sphere)
 findTwin e =
   msum . (map (\cs@(_,s,_) -> fmap (, cs) $ findTwin' e (holes s))) . cursors
@@ -84,9 +76,9 @@ findTwin' e =
 findTwin'' :: Edge -> [Edge] -> Maybe (Cursor Edge)
 findTwin'' e = find ((==) (edgeLabel e) . edgeLabel . pointed) . cursors
 
-invert = reverse . (map inv) where
-  inv (E u) = E_1 u
-  inv (E_1 u) = E u
+inv (E u) = E_1 u
+inv (E_1 u) = E u
+invert = reverse . (map inv)
 
 align e e' es (pre,_,post)
   | sameDir e e' = (invert pre)++(invert post)++es
@@ -117,4 +109,39 @@ zipSpheres = surfaces [] where
                   (Hole $ reverse doneEdges, newHoles, spheres)
         in doHoles holes' [] spheres
 
-zipOpposites hs = hs -- todo
+{- check that the start symbol participates in the pattern.
+   If so, return the unmatched part -}
+matchPattern :: Int -> ([Edge] -> Bool) -> [Edge] -> Maybe [Edge]
+matchPattern len equiv es =
+  let les = length es
+      arr = listArray (0,les-1) es in
+  if les < len then Nothing else
+    let match = find (\j -> equiv [arr ! (i `mod` les)| i <- [j-len+1..j]]) [0..len-1] in
+    fmap (\j -> take (les-len) (drop (j+1) es)) match
+
+handle = matchPattern 4 handleEquiv where
+  handleEquiv [a, b, a', b']| dual a a' && dual b b' = True  where
+    dual (E a) (E_1 a')| a == a' = True
+    dual (E_1 a) (E a')| a == a' = True
+    dual _ _ = False
+  handleEquiv _ = False
+    
+crosscap = matchPattern 2 crosscapEquiv where
+  crosscapEquiv [E a, E a']| a == a' = True
+  crosscapEquiv [E_1 a, E_1 a']| a == a' = True
+  crosscapEquiv _ = False
+
+normalizeSphere :: Sphere -> String
+normalizeSphere =
+  let doHoles :: Int -> Int -> [Hole] -> Canonical
+      doHoles crosscaps handles [] = mkCanonical crosscaps handles
+      doHoles crosscaps handles (h:hs) =
+        let es'@(e:es) = edges h
+            restE crosscaps handles [] = doHoles crosscaps handles hs
+            restE crosscaps handles es = doHoles crosscaps handles ((Hole es):hs)
+            rem = fmap (restE (crosscaps+1) handles) (crosscap es') <|>
+                  fmap (restE crosscaps (handles+1)) (handle es') in
+        fromJust rem {- todo -}
+        {-case findTwin'' e reste of
+        Just ce -> -}
+  in show . doHoles 0 0 . holes

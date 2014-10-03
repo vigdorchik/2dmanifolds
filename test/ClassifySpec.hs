@@ -3,15 +3,15 @@ module Main where
 import Classify
 import Test.HUnit  -- QuickCheck in the future when possible.
  
-testPlusSphere = TestCase $ assertEqual  "+ sphere" "(aa')+()" $ normalize "(aa')+()"
-testSpherePlus = TestCase $ assertEqual  "sphere +" "()+(aa')" $ normalize "()+(aa')"
-test2Spheres = TestCase $ assertEqual  "2 spheres" "()+()" $ normalize "()+()"
+testCrosscap = TestCase $ assertEqual  "1 crosscap" "Crosscaps 1" $ normalize "(ab)+(b'a)"
+testHandle = TestCase $ assertEqual  "1 handle" "Handles 1" $ normalize "(ca)+(b'abc)"
+test3Crosscaps = TestCase $ assertEqual  "3 crosscaps" "Crosscaps 3" $ normalize "(cadd)+(b'abc)"
 testSimple = TestCase $ assertEqual  "simple case" "(adc'a'c)(d)" $ normalize "(aba'c)(d)+(d'bc)"
 
-unitTests = TestList [TestLabel "simple" testSimple,
-                      TestLabel "2 spheres" test2Spheres,
-                      TestLabel "sphere+" testSpherePlus,
-                      TestLabel "+sphere" testPlusSphere]
+unitTests = TestList [--TestLabel "simple" testSimple,
+                      TestLabel "handle" testHandle,
+                      TestLabel "crosscap" testCrosscap,
+                      TestLabel "3 crosscaps" test3Crosscaps]
  
 main :: IO ()
 main = do _ <- runTestTT unitTests

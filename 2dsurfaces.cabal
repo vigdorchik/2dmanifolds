@@ -10,7 +10,7 @@ library
   exposed-modules:   Classify
   hs-source-dirs:    src
   other-modules:     Classify.Cursor
-  build-depends:     base, parsec
+  build-depends:     base, parsec, array
   default-language:  Haskell98
 
 Test-Suite classify-spec
