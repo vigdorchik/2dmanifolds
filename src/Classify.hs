@@ -1,7 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 module Classify (normalize) where
 
-import Debug.Trace
 import Classify.Cursor
 import Data.List
 import Data.Array
@@ -44,7 +43,7 @@ mkCanonical crosscaps handles
 
 edgeP = do
   c <- letter
-  option (E c) $ fmap (\_ -> E_1 c) (char '\'')
+  option (E c) $ fmap (const (E_1 c)) (char '\'')
 holeP = fmap Hole $ many1 edgeP
 sphereP = fmap Sphere $ many1 (between (char '(') (char ')') holeP)
 surfaceP = sepBy1 sphereP (char '+')
@@ -149,6 +148,11 @@ normalizeSphere =
                       doEdges (crosscaps+1) handles ((invert pre)++post)
                     else
                       doHoles crosscaps handles ((Hole pre):(Hole post):hs)
-                  {-Nothing -> todo -} in
+                  Nothing ->
+                    let Just ((pre, e', post), ch') = findTwin' e hs in
+                    if sameDir e e' then {- crosshandle -}
+                      doHoles (crosscaps+2) handles ((Hole $ post++pre++(invert es)):(excluded ch'))
+                    else {- handle -}
+                      doHoles crosscaps (handles+1) ((Hole $ post++pre++es):(excluded ch'))  in
         doEdges crosscaps handles (edges h)
   in show . doHoles 0 0 . holes
