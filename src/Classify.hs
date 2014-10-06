@@ -14,7 +14,7 @@ import Text.ParserCombinators.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Char (letter)
 import Text.ParserCombinators.Parsec.Prim (parse)
 
-data Edge = E Char | E_1 Char deriving Show
+data Edge = E Char | E_1 Char
 
 edgeLabel (E c) = c
 edgeLabel (E_1 c) = c
@@ -80,12 +80,14 @@ inv (E u) = E_1 u
 inv (E_1 u) = E u
 invert = reverse . (map inv)
 
+sameDir :: Edge -> Edge -> Bool
+sameDir (E _) (E _) = True
+sameDir (E_1 _) (E_1 _) = True
+sameDir _ _ = False
+
 align e e' es (pre,_,post)
   | sameDir e e' = (invert pre)++(invert post)++es
-  | otherwise = post++pre++es where
-    sameDir (E _) (E _) = True
-    sameDir (E_1 _) (E_1 _) = True
-    sameDir _ _ = False
+  | otherwise = post++pre++es
 
 zipSpheres :: [Sphere] -> [Sphere]
 zipSpheres = surfaces [] where
@@ -136,12 +138,17 @@ normalizeSphere =
   let doHoles :: Int -> Int -> [Hole] -> Canonical
       doHoles crosscaps handles [] = mkCanonical crosscaps handles
       doHoles crosscaps handles (h:hs) =
-        let es'@(e:es) = edges h
-            restE crosscaps handles [] = doHoles crosscaps handles hs
-            restE crosscaps handles es = doHoles crosscaps handles ((Hole es):hs)
-            rem = fmap (restE (crosscaps+1) handles) (crosscap es') <|>
-                  fmap (restE crosscaps (handles+1)) (handle es') in
-        fromJust rem {- todo -}
-        {-case findTwin'' e reste of
-        Just ce -> -}
+        let doEdges crosscaps handles [] = doHoles crosscaps handles hs
+            doEdges crosscaps handles (all@(e:es)) =
+              let separated = fmap (doEdges (crosscaps+1) handles) (crosscap all) <|>
+                              fmap (doEdges crosscaps (handles+1)) (handle all) in
+              maybe doZip id separated where
+                doZip = case findTwin'' e es of
+                  Just (pre, e', post)  ->
+                    if sameDir e e' then
+                      doEdges (crosscaps+1) handles ((invert pre)++post)
+                    else
+                      doHoles crosscaps handles ((Hole pre):(Hole post):hs)
+                  {-Nothing -> todo -} in
+        doEdges crosscaps handles (edges h)
   in show . doHoles 0 0 . holes
