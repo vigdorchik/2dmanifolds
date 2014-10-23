@@ -1,5 +1,5 @@
 {-# LANGUAGE TupleSections #-}
-module Classify (normalize) where
+module Classify (normalize, Canonical(..)) where
 
 import Classify.Cursor
 import Data.List
@@ -34,7 +34,7 @@ newtype Sphere = Sphere {
 instance Show Sphere where
   show = concat . map ((:) '(' . flip (++) ")" . show) . holes
 
-data Canonical = Zero | Crosscaps Int | Handles Int deriving Show
+data Canonical = Zero | Crosscaps Int | Handles Int deriving (Eq, Show)
 
 mkCanonical crosscaps handles
   | crosscaps == 0 && handles == 0 = Zero
@@ -59,10 +59,10 @@ validate = mfilter (\spheres' ->
                          nub' = nub labels' in
                      nub' == (labels' \\ nub')) . fromStr
   
-normalize :: String -> String
+normalize :: String -> [Canonical]
 normalize s = case validate s of
   Left err -> error err
-  Right spheres -> intercalate "+" (map normalizeSphere . zipSpheres $ spheres)
+  Right spheres -> map normalizeSphere . zipSpheres $ spheres
 
 findTwin :: Edge -> [Sphere] -> Maybe ((Cursor Edge, Cursor Hole), Cursor Sphere)
 findTwin e =
@@ -132,7 +132,7 @@ crosscap = matchPattern 2 crosscapEquiv where
   crosscapEquiv [E_1 a, E_1 a']| a == a' = True
   crosscapEquiv _ = False
 
-normalizeSphere :: Sphere -> String
+normalizeSphere :: Sphere -> Canonical
 normalizeSphere =
   let doHoles :: Int -> Int -> [Hole] -> Canonical
       doHoles crosscaps handles [] = mkCanonical crosscaps handles
@@ -155,4 +155,4 @@ normalizeSphere =
                     else {- handle -}
                       doHoles crosscaps (handles+1) ((Hole $ post++pre++es):(excluded ch'))  in
         doEdges crosscaps handles (edges h)
-  in show . doHoles 0 0 . holes
+  in doHoles 0 0 . holes

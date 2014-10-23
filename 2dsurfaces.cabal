@@ -16,6 +16,6 @@ library
 Test-Suite classify-spec
  type: exitcode-stdio-1.0
  main-is: ClassifySpec.hs
- build-depends: base, HUnit, 2dsurfaces
+ build-depends: base, HUnit, QuickCheck, 2dsurfaces
  hs-source-dirs:    test
  default-language: Haskell98
