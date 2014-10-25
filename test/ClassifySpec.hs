@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module Main where
 
 import Classify
@@ -25,33 +24,32 @@ unitTests = TestList [TestLabel "zero" testZero,
                       TestLabel "4 crosscaps" test4Crosscaps,
                       TestLabel "zip same direction holes" testZipHoles]
 
--- just one sphere.
-surfaceGen =
-  do
-    let num = 10
-    n <- suchThat (fmap (flip mod num) arbitrary) ((<) 1)
-    let l = take n ['a'..'z']
-        fact :: Int -> Int
-        fact 1 = 1
-        fact !n = n * fact (n-1)
-    f <- fmap (flip mod (fact (2*n))) arbitrary
-    inv <- sequence $ replicate (2*n) arbitrary
-    let permute [x] acc _ 1 = reverse (x:acc)
-        permute l acc i lev  =
-          let (d, m) = i `divMod` lev
-              (pre, x:post) = splitAt m l in
-          permute (pre++post) (x:acc) d (lev-1)
-        p = permute (l++l) [] f (2*n)
-        s = map (\(x, inv) -> if inv then [x, '\''] else [x]) (zip p inv)
-        holed i l res = do
-          j <- suchThat (fmap (flip mod n) arbitrary) (\j -> j > 0 && i+j <= 2*n)
-          let (pre, post) = splitAt j l
-              res' = if null res then pre else res ++ [")("] ++ pre
-          if i+j == 2*n
-            then return res' 
-            else holed (i+j) post res'
-    hs <- holed 0 s []
-    return $ "(" ++ (concat hs) ++ ")"
+surfaceGen = do
+  let num = 10
+  n <- suchThat (fmap (flip mod num) arbitrary) ((<) 1)
+  let l = take n ['a'..'z']
+      fact :: Int -> Int
+      fact 1 = 1
+      fact n = n * fact (n-1)
+  f <- fmap (flip mod (fact (2*n))) arbitrary
+  inv <- sequence $ replicate (2*n) arbitrary
+  let permute [x] acc _ 1 = reverse (x:acc)
+      permute l acc i lev  =
+        let (d, m) = i `divMod` lev
+            (pre, x:post) = splitAt m l in
+        permute (pre++post) (x:acc) d (lev-1)
+      p = permute (l++l) [] f (2*n)
+      s = map (\(x, inv) -> if inv then [x, '\''] else [x]) (zip p inv)
+      surface i l res = do
+        j <- suchThat (fmap (flip mod n) arbitrary) (\j -> j > 0 && i+j <= 2*n)
+        newSphere <- elements [True, False, False, False]
+        let (pre, post) = splitAt j l
+            sepa = if newSphere then ")+(" else ")("
+            res' = if i == 0 then pre ++ res else pre ++ [sepa] ++ res
+        if i+j == 2*n
+          then (return . concat . (:) "(") res'
+          else surface (i+j) post res'
+  surface 0 s [")"]
 
 card :: Canonical -> Int
 card (Crosscaps n) = n
@@ -59,8 +57,8 @@ card (Handles n) = n*2
 card Zero = 0
 
 propLinear = forAll surfaceGen (\s ->
-                                 let [normal] = normalize s in
-                                 card normal <= (length $ filter (flip elem ['a'..'z']) s))
+                                 let n = (sum . map card . normalize) s in
+                                 n <= (length $ filter (flip elem ['a'..'z']) s))
 
 main :: IO ()
 main = do _ <- runTestTT unitTests
