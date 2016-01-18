@@ -1,6 +1,6 @@
-name:                2dsurfaces
+name:                2dmanifolds
 version:             0.1.0.0
-description:         Provide classification for 2D topological surfaces.
+description:         Provide classification for 2D topological manifolds.
 author:              Eugene Vigdorchik
 category:            Math
 build-type:          Simple
@@ -16,6 +16,6 @@ library
 Test-Suite classify-spec
  type: exitcode-stdio-1.0
  main-is: ClassifySpec.hs
- build-depends: base, HUnit, QuickCheck, 2dsurfaces
+ build-depends: base, HUnit, QuickCheck, 2dmanifolds
  hs-source-dirs:    test
  default-language: Haskell98
